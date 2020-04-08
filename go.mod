@@ -2,7 +2,12 @@ module github.com/matrix-org/dendrite
 
 require (
 	github.com/Shopify/sarama v0.0.0-20170127151855-574d3147eee3
+	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
+	github.com/eapache/go-resiliency v1.2.0 // indirect
+	github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21 // indirect
+	github.com/eapache/queue v1.1.0 // indirect
 	github.com/gorilla/mux v1.7.3
+	github.com/klauspost/crc32 v1.2.0 // indirect
 	github.com/lib/pq v1.2.0
 	github.com/libp2p/go-libp2p v0.5.0
 	github.com/libp2p/go-libp2p-circuit v0.1.4
@@ -26,8 +31,10 @@ require (
 	github.com/multiformats/go-multiaddr v0.2.0
 	github.com/nfnt/resize v0.0.0-20160724205520-891127d8d1b5
 	github.com/opentracing/opentracing-go v1.0.2
+	github.com/pierrec/lz4 v2.5.0+incompatible // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v1.4.0
+	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0 // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/uber/jaeger-client-go v2.15.0+incompatible
 	github.com/uber/jaeger-lib v1.5.0
