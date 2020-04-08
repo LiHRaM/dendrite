@@ -12,31 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build !wasm
+
 package storage
 
 import (
-	"context"
 	"net/url"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"github.com/matrix-org/dendrite/common"
 	"github.com/matrix-org/dendrite/publicroomsapi/storage/postgres"
 	"github.com/matrix-org/dendrite/publicroomsapi/storage/postgreswithdht"
 	"github.com/matrix-org/dendrite/publicroomsapi/storage/postgreswithpubsub"
-	"github.com/matrix-org/dendrite/publicroomsapi/types"
-	"github.com/matrix-org/gomatrixserverlib"
+	"github.com/matrix-org/dendrite/publicroomsapi/storage/sqlite3"
 )
-
-type Database interface {
-	common.PartitionStorer
-	GetRoomVisibility(ctx context.Context, roomID string) (bool, error)
-	SetRoomVisibility(ctx context.Context, visible bool, roomID string) error
-	CountPublicRooms(ctx context.Context) (int64, error)
-	GetPublicRooms(ctx context.Context, offset int64, limit int16, filter string) ([]types.PublicRoom, error)
-	UpdateRoomFromEvents(ctx context.Context, eventsToAdd []gomatrixserverlib.Event, eventsToRemove []gomatrixserverlib.Event) error
-	UpdateRoomFromEvent(ctx context.Context, event gomatrixserverlib.Event) error
-}
 
 // NewPublicRoomsServerDatabase opens a database connection.
 func NewPublicRoomsServerDatabase(dataSourceName string) (Database, error) {
@@ -47,6 +36,8 @@ func NewPublicRoomsServerDatabase(dataSourceName string) (Database, error) {
 	switch uri.Scheme {
 	case "postgres":
 		return postgres.NewPublicRoomsServerDatabase(dataSourceName)
+	case "file":
+		return sqlite3.NewPublicRoomsServerDatabase(dataSourceName)
 	default:
 		return postgres.NewPublicRoomsServerDatabase(dataSourceName)
 	}

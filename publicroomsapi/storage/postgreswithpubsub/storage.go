@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/matrix-org/dendrite/publicroomsapi/storage/postgres"
-	"github.com/matrix-org/dendrite/publicroomsapi/types"
 	"github.com/matrix-org/gomatrixserverlib"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -34,7 +33,7 @@ const MaintenanceInterval = time.Second * 10
 
 type discoveredRoom struct {
 	time time.Time
-	room types.PublicRoom
+	room gomatrixserverlib.PublicRoom
 }
 
 // PublicRoomsServerDatabase represents a public rooms server database.
@@ -85,13 +84,13 @@ func (d *PublicRoomsServerDatabase) CountPublicRooms(ctx context.Context) (int64
 	return int64(len(d.foundRooms)), nil
 }
 
-func (d *PublicRoomsServerDatabase) GetPublicRooms(ctx context.Context, offset int64, limit int16, filter string) ([]types.PublicRoom, error) {
-	var rooms []types.PublicRoom
+func (d *PublicRoomsServerDatabase) GetPublicRooms(ctx context.Context, offset int64, limit int16, filter string) ([]gomatrixserverlib.PublicRoom, error) {
+	var rooms []gomatrixserverlib.PublicRoom
 	if filter == "__local__" {
 		if r, err := d.PublicRoomsServerDatabase.GetPublicRooms(ctx, offset, limit, ""); err == nil {
 			rooms = append(rooms, r...)
 		} else {
-			return []types.PublicRoom{}, err
+			return []gomatrixserverlib.PublicRoom{}, err
 		}
 	} else {
 		d.foundRoomsMutex.RLock()

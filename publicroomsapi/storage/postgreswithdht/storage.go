@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/matrix-org/dendrite/publicroomsapi/storage/postgres"
-	"github.com/matrix-org/dendrite/publicroomsapi/types"
 	"github.com/matrix-org/gomatrixserverlib"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
@@ -36,13 +35,13 @@ const DHTInterval = time.Second * 10
 type PublicRoomsServerDatabase struct {
 	dht *dht.IpfsDHT
 	postgres.PublicRoomsServerDatabase
-	ourRoomsContext  context.Context             // our current value in the DHT
-	ourRoomsCancel   context.CancelFunc          // cancel when we want to expire our value
-	foundRooms       map[string]types.PublicRoom // additional rooms we have learned about from the DHT
-	foundRoomsMutex  sync.RWMutex                // protects foundRooms
-	maintenanceTimer *time.Timer                 //
-	roomsAdvertised  atomic.Value                // stores int
-	roomsDiscovered  atomic.Value                // stores int
+	ourRoomsContext  context.Context                         // our current value in the DHT
+	ourRoomsCancel   context.CancelFunc                      // cancel when we want to expire our value
+	foundRooms       map[string]gomatrixserverlib.PublicRoom // additional rooms we have learned about from the DHT
+	foundRoomsMutex  sync.RWMutex                            // protects foundRooms
+	maintenanceTimer *time.Timer                             //
+	roomsAdvertised  atomic.Value                            // stores int
+	roomsDiscovered  atomic.Value                            // stores int
 }
 
 // NewPublicRoomsServerDatabase creates a new public rooms server database.
@@ -80,14 +79,14 @@ func (d *PublicRoomsServerDatabase) CountPublicRooms(ctx context.Context) (int64
 	return count + int64(len(d.foundRooms)), nil
 }
 
-func (d *PublicRoomsServerDatabase) GetPublicRooms(ctx context.Context, offset int64, limit int16, filter string) ([]types.PublicRoom, error) {
+func (d *PublicRoomsServerDatabase) GetPublicRooms(ctx context.Context, offset int64, limit int16, filter string) ([]gomatrixserverlib.PublicRoom, error) {
 	realfilter := filter
 	if realfilter == "__local__" {
 		realfilter = ""
 	}
 	rooms, err := d.PublicRoomsServerDatabase.GetPublicRooms(ctx, offset, limit, realfilter)
 	if err != nil {
-		return []types.PublicRoom{}, err
+		return []gomatrixserverlib.PublicRoom{}, err
 	}
 	if filter != "__local__" {
 		d.foundRoomsMutex.RLock()
@@ -151,9 +150,9 @@ func (d *PublicRoomsServerDatabase) FindRoomsInDHT() error {
 	if err != nil {
 		return err
 	}
-	d.foundRooms = make(map[string]types.PublicRoom)
+	d.foundRooms = make(map[string]gomatrixserverlib.PublicRoom)
 	for _, result := range results {
-		var received []types.PublicRoom
+		var received []gomatrixserverlib.PublicRoom
 		if err := json.Unmarshal(result.Val, &received); err != nil {
 			return err
 		}
