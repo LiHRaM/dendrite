@@ -26,11 +26,17 @@ import (
 
 	"golang.org/x/crypto/ed25519"
 
+	"github.com/libp2p/go-libp2p"
+	circuit "github.com/libp2p/go-libp2p-circuit"
 	"github.com/libp2p/go-libp2p-core/peer"
+	crypto "github.com/libp2p/go-libp2p-crypto"
+	routing "github.com/libp2p/go-libp2p-routing"
+
 	host "github.com/libp2p/go-libp2p-host"
 	p2phttp "github.com/libp2p/go-libp2p-http"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	p2pdisc "github.com/libp2p/go-libp2p/p2p/discovery"
 	"github.com/matrix-org/dendrite/common/keydb"
 	"github.com/matrix-org/gomatrixserverlib"
 	"github.com/matrix-org/naffka"
@@ -75,9 +81,6 @@ type BaseDendrite struct {
 	LibP2PPubsub  *pubsub.PubSub
 }
 
-// NewBaseDendrite creates a new instance to be used by a component.
-// The componentName is used for logging purposes, and should be a friendly name
-// of the compontent running, e.g. "SyncAPI"
 func NewBaseDendrite(cfg *config.Dendrite, componentName string) *BaseDendrite {
 	common.SetupStdLogging()
 	common.SetupHookLogging(cfg.Logging, componentName)
@@ -87,24 +90,75 @@ func NewBaseDendrite(cfg *config.Dendrite, componentName string) *BaseDendrite {
 		logrus.WithError(err).Panicf("failed to start opentracing")
 	}
 
-	var kafkaConsumer sarama.Consumer
-	var kafkaProducer sarama.SyncProducer
-	if cfg.Kafka.UseNaffka {
-		kafkaConsumer, kafkaProducer = setupNaffka(cfg)
+	kafkaConsumer, kafkaProducer := setupKafka(cfg)
+
+	if cfg.Matrix.ServerName == "p2p" {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		privKey, err := crypto.UnmarshalEd25519PrivateKey(cfg.Matrix.PrivateKey[:])
+		if err != nil {
+			panic(err)
+		}
+
+		//defaultIP6ListenAddr, _ := multiaddr.NewMultiaddr("/ip6/::/tcp/0")
+
+		var libp2pdht *dht.IpfsDHT
+		libp2p, err := libp2p.New(ctx,
+			libp2p.Identity(privKey),
+			libp2p.DefaultListenAddrs,
+			//libp2p.ListenAddrs(defaultIP6ListenAddr),
+			libp2p.DefaultTransports,
+			libp2p.Routing(func(h host.Host) (r routing.PeerRouting, err error) {
+				libp2pdht, err = dht.New(ctx, h)
+				if err != nil {
+					return nil, err
+				}
+				//libp2pdht.Validator = LibP2PValidator{}
+				r = libp2pdht
+				return
+			}),
+			libp2p.EnableAutoRelay(),
+			libp2p.EnableRelay(circuit.OptHop),
+		)
+		if err != nil {
+			panic(err)
+		}
+
+		libp2ppubsub, err := pubsub.NewFloodSub(context.Background(), libp2p, []pubsub.Option{
+			pubsub.WithMessageSigning(true),
+		}...)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("Our public key:", privKey.GetPublic())
+		fmt.Println("Our node ID:", libp2p.ID())
+		fmt.Println("Our addresses:", libp2p.Addrs())
+
+		cfg.Matrix.ServerName = gomatrixserverlib.ServerName(libp2p.ID().String())
+
+		return &BaseDendrite{
+			componentName: componentName,
+			tracerCloser:  closer,
+			Cfg:           cfg,
+			APIMux:        mux.NewRouter().UseEncodedPath(),
+			KafkaConsumer: kafkaConsumer,
+			KafkaProducer: kafkaProducer,
+			LibP2P:        libp2p,
+			LibP2PContext: ctx,
+			LibP2PCancel:  cancel,
+			LibP2PDHT:     libp2pdht,
+			LibP2PPubsub:  libp2ppubsub,
+		}
 	} else {
-		kafkaConsumer, kafkaProducer = setupKafka(cfg)
-	}
-
-	const defaultHTTPTimeout = 30 * time.Second
-
-	return &BaseDendrite{
-		componentName: componentName,
-		tracerCloser:  closer,
-		Cfg:           cfg,
-		APIMux:        mux.NewRouter().UseEncodedPath(),
-		httpClient:    &http.Client{Timeout: defaultHTTPTimeout},
-		KafkaConsumer: kafkaConsumer,
-		KafkaProducer: kafkaProducer,
+		return &BaseDendrite{
+			componentName: componentName,
+			tracerCloser:  closer,
+			Cfg:           cfg,
+			APIMux:        mux.NewRouter().UseEncodedPath(),
+			KafkaConsumer: kafkaConsumer,
+			KafkaProducer: kafkaProducer,
+		}
 	}
 }
 
@@ -266,8 +320,50 @@ func (b *BaseDendrite) SetupAndServeHTTP(bindaddr string, listenaddr string) {
 	logrus.Infof("Stopped %s server on %s", b.componentName, addr)
 }
 
-// setupKafka creates kafka consumer/producer pair from the config.
+// setupKafka creates kafka consumer/producer pair from the config. Checks if
+// should use naffka.
 func setupKafka(cfg *config.Dendrite) (sarama.Consumer, sarama.SyncProducer) {
+	if cfg.Kafka.UseNaffka {
+		var naffkaDB *naffka.DatabaseImpl
+		uri, err := url.Parse(string(cfg.Database.Naffka))
+		if err != nil {
+			panic(err)
+		}
+		switch uri.Scheme {
+		case "file":
+			db, err := sql.Open(common.SQLiteDriverName(), string(cfg.Database.Naffka))
+			if err != nil {
+				logrus.WithError(err).Panic("Failed to open naffka database")
+			}
+
+			naffkaDB, err = naffka.NewSqliteDatabase(db)
+			if err != nil {
+				logrus.WithError(err).Panic("Failed to setup naffka database")
+			}
+		case "postgres":
+			fallthrough
+		default:
+			db, err := sql.Open("postgres", string(cfg.Database.Naffka))
+			if err != nil {
+				logrus.WithError(err).Panic("Failed to open naffka database")
+			}
+
+			naffkaDB, err = naffka.NewPostgresqlDatabase(db)
+			if err != nil {
+				logrus.WithError(err).Panic("Failed to setup naffka database")
+			}
+		}
+
+		naff, err := naffka.New(naffkaDB)
+		if err != nil {
+			panic(err)
+		}
+
+		//logrus.WithError(err).Panic("Failed to setup naffka")
+
+		return naff, naff
+	}
+
 	consumer, err := sarama.NewConsumer(cfg.Kafka.Addresses, nil)
 	if err != nil {
 		logrus.WithError(err).Panic("failed to start kafka consumer")

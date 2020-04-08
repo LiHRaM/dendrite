@@ -52,6 +52,8 @@ func NewPublicRoomsServerDatabaseWithDHT(dataSourceName string, dht *dht.IpfsDHT
 	switch uri.Scheme {
 	case "postgres":
 		return postgreswithdht.NewPublicRoomsServerDatabase(dataSourceName, dht)
+	case "file":
+		return sqlite3.NewPublicRoomsServerDatabase(dataSourceName)
 	default:
 		return postgreswithdht.NewPublicRoomsServerDatabase(dataSourceName, dht)
 	}
@@ -66,6 +68,8 @@ func NewPublicRoomsServerDatabaseWithPubSub(dataSourceName string, pubsub *pubsu
 	switch uri.Scheme {
 	case "postgres":
 		return postgreswithpubsub.NewPublicRoomsServerDatabase(dataSourceName, pubsub)
+	case "file":
+		return sqlite3.NewPublicRoomsServerDatabase(dataSourceName)
 	default:
 		return postgreswithpubsub.NewPublicRoomsServerDatabase(dataSourceName, pubsub)
 	}
