@@ -17,82 +17,38 @@ services:
       - "443:443"
       - "9090:9090"
 
-  sytest:
-    image: matrixdotorg/sytest-dendrite
-    volumes:
-      - ..:/src
-      - ~/Desktop/sytestlogs:/logs
-    entrypoint: [ "/bin/bash", "/bootstrap.sh", "dendrite" ]
-
   monolith-1:
     container_name: dendrite_monolith-1
     hostname: monolith-1
-    entrypoint: ["bash", "./docker/services/monolith.sh", "--config", "/etc/dendrite/dendrite-1.yaml"]
+    entrypoint: ["bash", "./docker/services/p2p-demo.sh"]
     build: ./
     volumes:
       - ..:/build
       - ./build/bin:/build/bin
       - ~/go/pkg:/go/pkg
-      - ~/Desktop/dendrite-configs:/etc/dendrite
-    links:
-      - postgres-1:database
     networks:
       - internal
-    depends_on:
-      - postgres-1
     ports:
+      - "8080:8080"
       - "8008:8008"
       - "8448:8448"
 
   monolith-2:
     container_name: dendrite_monolith-2
     hostname: monolith-2
-    entrypoint: ["bash", "./docker/services/monolith.sh", "--config", "/etc/dendrite/dendrite-2.yaml"]
+    entrypoint: ["bash", "./docker/services/p2p-demo.sh"]
     build: ./
     volumes:
       - ..:/build
       - ./build/bin:/build/bin
       - ~/go/pkg:/go/pkg
       - ~/Desktop/dendrite-configs:/etc/dendrite
-    links:
-      - postgres-2:database
     networks:
       - internal
-    depends_on:
-      - postgres-2
     ports:
+      - "8081:8080"
       - "8009:8008"
       - "8449:8448"
-
-  postgres-1:
-    container_name: dendrite_postgres-1
-    hostname: postgres
-    image: postgres:9.5
-    restart: always
-    volumes:
-      - ./postgres/create_db.sh:/docker-entrypoint-initdb.d/20-create_db.sh
-    environment:
-      POSTGRES_PASSWORD: itsasecret
-      POSTGRES_USER: dendrite
-    networks:
-      - internal
-    ports:
-      - "5432:5432"
-
-  postgres-2:
-    container_name: dendrite_postgres-2
-    hostname: postgres
-    image: postgres:9.5
-    restart: always
-    volumes:
-      - ./postgres/create_db.sh:/docker-entrypoint-initdb.d/20-create_db.sh
-    environment:
-      POSTGRES_PASSWORD: itsasecret
-      POSTGRES_USER: dendrite
-    networks:
-      - internal
-    ports:
-      - "5433:5432"
 
 networks:
   internal:
