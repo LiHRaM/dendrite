@@ -19,8 +19,8 @@ import (
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"github.com/matrix-org/dendrite/cmd/dendrite-p2p-demo/server/storage/postgreswithdht"
-	"github.com/matrix-org/dendrite/cmd/dendrite-p2p-demo/server/storage/postgreswithpubsub"
+	"github.com/matrix-org/dendrite/cmd/dendrite-demo-libp2p/server/storage/postgreswithdht"
+	"github.com/matrix-org/dendrite/cmd/dendrite-demo-libp2p/server/storage/postgreswithpubsub"
 	"github.com/matrix-org/dendrite/publicroomsapi/storage"
 	"github.com/matrix-org/dendrite/publicroomsapi/storage/sqlite3"
 )

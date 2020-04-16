@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 
-	"github.com/matrix-org/dendrite/cmd/dendrite-p2p-demo/server"
+	"github.com/matrix-org/dendrite/cmd/dendrite-demo-libp2p/server"
 )
 
 func main() {
